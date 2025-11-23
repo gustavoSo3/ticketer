@@ -44,3 +44,8 @@ type days_series = {
         [date: string]: day_data
     };
 };
+
+type apiCall = {
+    is_valid: boolean;
+    data: Response | null;
+}

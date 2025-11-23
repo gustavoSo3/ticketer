@@ -29,7 +29,7 @@ export default function Page() {
       <div className="mt-3 text-2xl text-center">Click on a symbol for more information</div>
 
       <div className="flex flex-wrap p-2 items-center justify-center">
-        <Suspense fallback={Array.from({ length: 15 }).map((_, i) => <SymbolCardSHIMMER key={i} />)}>
+        <Suspense fallback={Array.from({ length: home_page_symbols.length }).map((_, i) => <SymbolCardSHIMMER key={i} />)}>
           <SymbolCardsContainer symbol_promise={symbols} />
         </Suspense>
       </div>

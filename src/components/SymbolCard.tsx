@@ -33,18 +33,19 @@ export default function SymbolCard(
 ) {
     return (
 
-        <Link href={`/${symbol.symbol}`} className="grow m-1 p-2 lg:p-3 lg:max-w-[260px] lg:min-h-[165px] rounded-md border-4 border-double hover:border-teal-400">
-            <div className="flex items-center">
+        <Link href={`/${symbol.symbol}`} className="grow m-1 p-2 rounded-md border-4 border-double hover:border-teal-400 w-[270px] sm:grow-0">
+            <div className="flex items-center justify-between">
                 <Image src={`https://img.logo.dev/ticker/${symbol.symbol}?token=pk_W1ts02iVSVOyP5OF3ioMfA`} alt={`${symbol} logo`} width="48" height="48" className="h-[48px] aspect-square"></Image>
+                <div className="text-2xl item-">{symbol.symbol}</div>
 
             </div>
-            <div className="flex flex-col max-w-fit">
-                <div className="flex text-center">
+            <div className="flex flex-col">
+                <div className="flex">
                     <div className="m-1">o: {symbol.open}</div>
                     <div className="m-1">h: {symbol.high}</div>
                     <div className="m-1">l: {symbol.low}</div>
                 </div>
-                <div className="flex text-xl text-center ">
+                <div className="flex text-xl justify-evenly ">
                     <h3>{symbol.price}</h3>
                     <div className="grow"></div>
                     <WinLoseColor change={symbol.change_percent}></WinLoseColor>

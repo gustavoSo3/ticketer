@@ -1,7 +1,9 @@
 import "server-only";
 
-async function validateAPICall(url: string): Promise<any> {
+async function validateAPICall(url: string): Promise<apiCall> {
     try {
+        // Using force-cache helps for request to not be duplicated, this is at
+        // fetch level maybe could implement own cache of the actual satitized data
         const response = await fetch(url, { cache: "force-cache" });
 
         if (!response.ok) {
@@ -10,8 +12,6 @@ async function validateAPICall(url: string): Promise<any> {
         }
 
         const data = await response.json();
-
-        console.log(data);
 
         if (data["Note"]) {
             // Invalid API call
@@ -25,13 +25,51 @@ async function validateAPICall(url: string): Promise<any> {
             throw new Error(`API info message: ${data["Information"]}`);
         }
 
-        return data;
+        return {
+            is_valid: true,
+            data: data,
+        }
     } catch (error: any) {
-        //console.error(`Error fetching URL ${url}:`, error.message || error);
-        return null;
+        return {
+
+            is_valid: false,
+            data: null,
+        };
     }
 }
 
+
+
+async function getSymbolQuery(symbol: string): Promise<symbol_simple_query> {
+
+    var simple_symbol_api_response: apiCall = await validateAPICall(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_API_KEY}`);
+
+    if (!simple_symbol_api_response.is_valid) {
+        //We get the demo IBM response
+        simple_symbol_api_response = await validateAPICall("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=demo");
+    };
+    return {
+        symbol: simple_symbol_api_response.data["Global Quote"]["01. symbol"] ?? "NA",
+        open: Number(simple_symbol_api_response.data["Global Quote"]["02. open"]) ?? 0,
+        high: Number(simple_symbol_api_response.data["Global Quote"]["03. high"]) ?? 0,
+        low: Number(simple_symbol_api_response.data["Global Quote"]["04. low"]) ?? 0,
+        price: Number(simple_symbol_api_response.data["Global Quote"]["05. price"]) ?? 0,
+        change: Number(simple_symbol_api_response.data["Global Quote"]["09. change"]) ?? 0,
+        change_percent: parseFloat(simple_symbol_api_response.data["Global Quote"]["10. change percent"].replace("%", "")),
+    };
+
+}
+
+export async function getSymbolsQuery(symbols: Array<string>): Promise<Array<symbol_simple_query>> {
+
+    const resp_symbols: Array<symbol_simple_query> = await Promise.all(
+        symbols.map(async (symbol: string) => {
+            return getSymbolQuery(symbol);
+        })
+    );
+
+    return resp_symbols;
+}
 
 function parseDaySeries(raw: any): days_series {
     const meta = raw["Meta Data"];
@@ -62,75 +100,35 @@ function parseDaySeries(raw: any): days_series {
     };
 }
 
-async function getSymbolQuery(symbol: string): Promise<symbol_simple_query> {
-    var symb = "IBM"
-    if (process.env.NEXT_PUBLIC_API_KEY != "demo") {
-        symb = symbol
-    }
-
-    var symbol_raw_object = await validateAPICall(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symb}&apikey=${process.env.NEXT_PUBLIC_API_KEY}`);
-
-    if (!symbol_raw_object) {
-        symbol_raw_object = await validateAPICall("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=demo");
-    }
-
-    return {
-        symbol: symbol_raw_object["Global Quote"]["01. symbol"] ?? "NA",
-        open: Number(symbol_raw_object["Global Quote"]["02. open"]) ?? 0,
-        high: Number(symbol_raw_object["Global Quote"]["03. high"]) ?? 0,
-        low: Number(symbol_raw_object["Global Quote"]["04. low"]) ?? 0,
-        price: Number(symbol_raw_object["Global Quote"]["05. price"]) ?? 0,
-        change: Number(symbol_raw_object["Global Quote"]["09. change"]) ?? 0,
-        change_percent: parseFloat(symbol_raw_object["Global Quote"]["10. change percent"].replace("%", "")),
-    };
-}
-
-export async function getSymbolsQuery(symbols: Array<string>): Promise<Array<symbol_simple_query>> {
-
-    const resp_symbols: Array<symbol_simple_query> = await Promise.all(
-        symbols.map(async (symbol: string) => {
-            return getSymbolQuery(symbol);
-        })
-    );
-
-    return resp_symbols;
-}
-
 export async function getSymbolInfo(symbol: string): Promise<symbol_complex_query> {
-    var symb = "IBM"
-    if (process.env.NEXT_PUBLIC_API_KEY != "demo") {
-        symb = symbol
-    }
+
+    var symbol_api_response: apiCall = await validateAPICall(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_API_KEY}`);
+
+    var day_series_api_response: apiCall = await validateAPICall(
+        `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${process.env.NEXT_PUBLIC_API_KEY}`);
 
 
-
-    var symbol_raw_object = await validateAPICall(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symb}&apikey=${process.env.NEXT_PUBLIC_API_KEY}`);
-
-    if (!symbol_raw_object) {
-        symbol_raw_object = await validateAPICall("https://www.alphavantage.co/query?function=OVERVIEW&symbol=IBM&apikey=demo");
-    }
-
-    var day_series_raw_object = await validateAPICall(
-        `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symb}&apikey=${process.env.NEXT_PUBLIC_API_KEY}`);
-
-    if (!day_series_raw_object) {
-        day_series_raw_object = await validateAPICall(
-            "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo");
-
-    }
+    if (!symbol_api_response.is_valid || !day_series_api_response.is_valid) {
+        //We get the demo IBM response
+        symbol_api_response = await validateAPICall("https://www.alphavantage.co/query?function=OVERVIEW&symbol=IBM&apikey=demo")
+        day_series_api_response = await validateAPICall(
+            "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo"
+        );
+    };
 
     return {
-        "symbol": symbol_raw_object["Symbol"] ?? "NA",
-        "asset_type": symbol_raw_object["AssetType"] ?? "NA",
-        "name": symbol_raw_object["Name"] ?? "NA",
-        "description": symbol_raw_object["Description"] ?? "NA",
-        "exchange": symbol_raw_object["Exchange"] ?? "NA",
-        "currency": symbol_raw_object["Currency"] ?? "NA",
-        "country": symbol_raw_object["Country"] ?? "NA",
-        "sector": symbol_raw_object["Sector"] ?? "NA",
-        "industry": symbol_raw_object["Industry"] ?? "NA",
-        "market_capitalization": Number(symbol_raw_object["MarketCapitalization"] ?? 0),
-        "last_data": await getSymbolQuery(symbol),
-        "day_series": parseDaySeries(day_series_raw_object)
+        symbol: symbol_api_response.data["Symbol"] ?? "NA",
+        asset_type: symbol_api_response.data["AssetType"] ?? "NA",
+        name: symbol_api_response.data["Name"] ?? "NA",
+        description: symbol_api_response.data["Description"] ?? "NA",
+        exchange: symbol_api_response.data["Exchange"] ?? "NA",
+        currency: symbol_api_response.data["Currency"] ?? "NA",
+        country: symbol_api_response.data["Country"] ?? "NA",
+        sector: symbol_api_response.data["Sector"] ?? "NA",
+        industry: symbol_api_response.data["Industry"] ?? "NA",
+        market_capitalization: Number(symbol_api_response.data["MarketCapitalization"] ?? 0),
+        last_data: await getSymbolQuery(symbol),
+        day_series: parseDaySeries(day_series_api_response.data)
     };
+
 }
